@@ -197,7 +197,15 @@ def runGame():
     while gameOver == False:
         #检测退出事件
         checkForQuit()
-        
+
+        #更新各个元素
+        clouds = updateCloud(clouds, move)
+        waves = updateWave(waves, move)
+        man = updateMan(man, move, drop_man)
+        rocks = updateRock(rocks, move)
+        score = updateScore(score, move)
+        ladder = updateLadder(ladder)
+                
         #根据各个元素最新情况，逻辑部分. 尤其是ladder相关的几个参数逻辑比较复杂，都在这里实现，便于维护
         if move == True: #正在走动时
             if move_on_ladder == True: 
@@ -211,8 +219,15 @@ def runGame():
                     for i, rock in enumerate(rocks):    #从梯子上下来，马上判断是不是落在某块石头上
                         rock_x_left, rock_width = rock[0], rock[2] #石头的左侧坐标，宽度
                         rock_x_right = rock_x_left + rock_width
-                        if man_x_center >= rock_x_left and man_x_center < rock_x_right - ROCK_SPEED: #注意，判定的时候不能太靠近石头的右沿，要给下一次正常循环留出余量，不然可能“跳过”临界区
+                        if man_x_center >= rock_x_left and man_x_center < rock_x_right: 
                             drop_man = False
+                            if man_x_center + ROCK_SPEED >= rock_x_right: #本次已经走进临界区，所以直接放梯子
+                                #print("x. Critical Sesson")
+                                move = False
+                                raise_ladder = True
+                                rock_current = rock
+                                rock_next = rocks[i+1]
+                                clearKeyEvent() #把行走过程中所有按键事件清空，为接下来的放梯子做准备
                             break
                     if drop_man == False:
                         #print("o. Back to normal loop")
@@ -280,7 +295,7 @@ def runGame():
                         move = True
                         move_on_ladder = True
                         sound_main_success.play()
-                        ladder_left = rock_current[0]+rock_current[2]-ROCK_SPEED
+                        ladder_left = rock_current[0]+rock_current[2]#-ROCK_SPEED
             if drop_ladder == True:
                 #print("*. Drop ladder")
                 ladder_drop += LADDER_DROP_SPEED
@@ -297,14 +312,6 @@ def runGame():
         
         #Ladder 的处理在本地，逻辑完成后，汇总更新ladder
         ladder = [ladder_left, ladder_drop, ladder_len, ladder_angle]
-        
-        #更新各个元素
-        clouds = updateCloud(clouds, move)
-        waves = updateWave(waves, move)
-        man = updateMan(man, move, drop_man)
-        rocks = updateRock(rocks, move)
-        score = updateScore(score, move)
-        ladder = updateLadder(ladder)
         
         #绘图步骤 --------
         drawBackground()
