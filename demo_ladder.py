@@ -53,7 +53,7 @@ LADDER_DROP_SPEED = BASIC_SPEED*5
 LADDER_DROP_MAX = MAIN_BOT
 LADDER_ANGLE_DELTA = 10
 LADDER_ANGLE_MAX = 90
-LADDER_WIDTH = 4
+LADDER_WIDTH = 3
 #云
 CLOUD_HEIGHT = MAIN_TOP
 CLOUD_WIDTH = CLOUD_HEIGHT*4//3
@@ -94,6 +94,7 @@ def main():
     global fps_lock, display_surf
 
     pygame.init()
+    pygame.mixer.init()
     fps_lock = pygame.time.Clock()
     display_surf = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     pygame.display.set_caption('Ladder')
@@ -105,12 +106,13 @@ def main():
         
 #====主要函数
 def showStartScreen():
+    pygame.mixer.music.load("resource/sound/start.mp3")
+    pygame.mixer.music.set_volume(0.5)
+    pygame.mixer.music.play(-1, 0.0)
+    clouds = initialCloud()
+    waves = initialWave()    
     while True:
         checkForQuit()
-        if checkForSpaceDown() == True:
-            break
-        clouds = initialCloud()
-        waves = initialWave()
         clouds = updateCloud(clouds, True)
         waves = updateWave(waves, True)
         drawBackgroundStart()    
@@ -122,17 +124,31 @@ def showStartScreen():
         drawPromptStart()
         pygame.display.update()
         fps_lock.tick(FPS)
+        if checkForSpaceDown() == True:
+            pygame.mixer.music.fadeout(1000)
+            break
         
 def showGameOverScreen(score):
+    pygame.mixer.music.load("resource/sound/end.mp3")
+    pygame.mixer.music.set_volume(0.5)
+    pygame.mixer.music.play(-1, 0.0)    
+    if np.random.randint(2) == 0:
+        sound_end_joke = pygame.mixer.Sound("resource/sound/end_joke_1.wav")
+    else:
+        sound_end_joke = pygame.mixer.Sound("resource/sound/end_joke_2.wav")
+    sound_end_joke.play()
     while True:
         checkForQuit()
-        if checkForSpaceDown() == True:
-            break
         drawBackgroundOver()    
         drawScoreOver(score)
         drawPromptOver()
         pygame.display.update()
         fps_lock.tick(FPS)
+        time.sleep(2)
+        if checkForSpaceDown() == True:
+            pygame.mixer.music.stop()
+            break
+
         
 def runGame():
     #本地变量，各种标记，缓存
@@ -146,6 +162,7 @@ def runGame():
     drop_man = False
     drop_ladder = False
     drop_ladder_dropping = False
+    button_prompt = 0 # 0:false, 1:true, 2:false
     
     rock_current = None
     rock_next = None
@@ -160,6 +177,17 @@ def runGame():
 
     #Ladder的处理在本地，所以参数先拆分
     ladder_left, ladder_drop, ladder_len, ladder_angle = ladder[0], ladder[1], ladder[2], ladder[3]
+
+    #MUSIC
+    pygame.mixer.music.load("resource/sound/main.mp3")
+    pygame.mixer.music.set_volume(0.3)
+    pygame.mixer.music.play(-1, 0.0)
+    sound_main_raise = pygame.mixer.Sound("resource/sound/main_raise.wav")
+    sound_main_success = pygame.mixer.Sound("resource/sound/main_success.wav")
+    sound_main_failure_1 = pygame.mixer.Sound("resource/sound/main_failure_1.wav")
+    sound_main_failure_2 = pygame.mixer.Sound("resource/sound/main_failure_2.wav")
+    sound_main_start = pygame.mixer.Sound("resource/sound/main_start.wav")
+    sound_main_start.play()
     
     while gameOver == False:
         #检测退出事件
@@ -168,11 +196,11 @@ def runGame():
         #根据各个元素最新情况，逻辑部分. 尤其是ladder相关的几个参数逻辑比较复杂，都在这里实现，便于维护
         if move == True: #正在走动时
             if move_on_ladder == True: 
-                print("6. Walk on ladder")
+                #print("6. Walk on ladder")
                 ladder_left -= ROCK_SPEED
                 man_pos = man[1]
                 man_x_center = man_pos[0] + MAN_WIDTH//2
-                if man_x_center >= ladder_left+ladder_len: #走出梯子了
+                if man_x_center > ladder_left+ladder_len: #走出梯子了
                     move_on_ladder = False
                     drop_man = True #临时设为True，在下面循环中检测有没有落在石头上
                     for i, rock in enumerate(rocks):    #从梯子上下来，马上判断是不是落在某块石头上
@@ -182,14 +210,15 @@ def runGame():
                             drop_man = False
                             break
                     if drop_man == False:
-                        print("o. Back to normal loop")
+                        #print("o. Back to normal loop")
                         ladder_left = MAN_CENTER
                         ladder_drop = ROCK_TOP
                         ladder_len = 0
                         ladder_angle = 0
                     else:
-                        print("6.5Drop out of rock")
+                        #print("6.5Drop out of rock")
                         move = False
+                        sound_main_failure_2.play()
             else:
                 man_pos = man[1]
                 man_x_center = man_pos[0] + MAN_WIDTH//2
@@ -197,7 +226,7 @@ def runGame():
                     rock_x_left, rock_width = rock[0], rock[2] #石头的左侧坐标，宽度
                     rock_x_right = rock_x_left + rock_width
                     if man_x_center < rock_x_right and man_x_center + ROCK_SPEED >= rock_x_right: #走到临界区，准备放梯子
-                        print("1. Ready to raise ladder")
+                        #print("1. Ready to raise ladder")
                         move = False
                         raise_ladder = True
                         rock_current = rock
@@ -206,47 +235,55 @@ def runGame():
                         break
         else:  #没有在走动，放梯子或者下坠
             if raise_ladder == True:
-                if raise_ladder_raising == False and checkForSpaceDown() == True: 
-                    print("2. Raising ladder")
-                    raise_ladder_raising = True
-                    ladder_len += LADDER_RAISE_SPEED
-                    clearKeyEvent() #把行走过程中所有按键事件清空，为接下来的放梯子做准备
+                if raise_ladder_raising == False:
+                    if checkForSpaceDown() == True: 
+                        #print("2. Raising ladder")
+                        button_prompt = 2
+                        raise_ladder_raising = True
+                        sound_main_raise.play()
+                        ladder_len += LADDER_RAISE_SPEED
+                        clearKeyEvent() #把行走过程中所有按键事件清空，为接下来的放梯子做准备
+                    elif button_prompt == 0:
+                        button_prompt = 1
                 if raise_ladder_raising == True:
                     if checkForSpaceUp() == True or ladder_len >= LADDER_LEN_MAX:
-                        print("3. Raised ladder")
+                        #print("3. Raised ladder")
                         raise_ladder_raising = False
                         raise_ladder = False
                         rotate_ladder = True
                         rotate_ladder_rotating = True 
+                        sound_main_raise.stop()
                     else: #按键按下中，增长梯子长度
-                        print("2.5Raising ladder")
+                        #print("2.5Raising ladder")
                         ladder_len += LADDER_RAISE_SPEED
             if rotate_ladder == True:
                 if rotate_ladder_rotating == True:
-                    print("4. Rotating ladder")
+                    #print("4. Rotating ladder")
                     ladder_angle += LADDER_ANGLE_DELTA
                     if ladder_angle >= LADDER_ANGLE_MAX: 
                         ladder_angle = LADDER_ANGLE_MAX
                         rotate_ladder_rotating = False
                 else:
-                    print("5. Rotated ladder")
+                    #print("5. Rotated ladder")
                     rotate_ladder = False
-                    print(ladder_len)
-                    print(rock_next[0] - rock_current[0] - rock_current[2])
-                    if ladder_len < rock_next[0] - rock_current[0] - rock_current[2]: #梯子连下一块石头都不够(下一块石头左侧坐标 - 当前石头右侧坐标)
+                    #print(ladder_len)
+                    #print(rock_next[0] - rock_current[0] - rock_current[2])
+                    if ladder_len <= rock_next[0] - rock_current[0] - rock_current[2]: #梯子连下一块石头都不够(下一块石头左侧坐标 - 当前石头右侧坐标)
                         drop_ladder = True
+                        sound_main_failure_1.play()
                     else:
                         move = True
                         move_on_ladder = True
+                        sound_main_success.play()
                         ladder_left = rock_current[0]+rock_current[2]-ROCK_SPEED
             if drop_ladder == True:
-                print("*. Drop ladder")
+                #print("*. Drop ladder")
                 ladder_drop += LADDER_DROP_SPEED
                 if ladder_drop >= LADDER_DROP_MAX:
                     drop_ladder = False
                     gameOver = True
             if drop_man == True:
-                print("7. Drop man")
+                #print("7. Drop man")
                 man_pos = man[1]
                 if man_pos[1] >= MAIN_BOT:
                     drop_man = False
@@ -274,10 +311,12 @@ def runGame():
         drawRock(rocks)
         drawLadder(ladder)
         drawScore(score)
+        drawButtonPropmt(button_prompt)
 
         pygame.display.update()
         fps_lock.tick(FPS)
     print("return: %d" % score)
+    pygame.mixer.music.stop()
     return score
         
 def checkForQuit():
@@ -460,7 +499,7 @@ def initialLadder():
     return ladder
 
 def updateLadder(ladder):
-    print(ladder)
+    #print(ladder)
     return ladder
         
 def drawLadder(ladder):
@@ -471,16 +510,6 @@ def drawLadder(ladder):
     ladder_img = pygame.transform.rotate(ladder_img, -ladder_angle)
     img_hight = pygame.Surface.get_height(ladder_img)
     display_surf.blit(ladder_img, (ladder_left, ladder_drop-img_hight))
-'''    
-    surf_ladder = pygame.Surface([LADDER_WIDTH, ladder_len])
-    surf_ladder.fill(COLOR_LADDER)
-    surf_ladder = pygame.transform.rotate(surf_ladder, ladder_angle)
-    display_surf.blit(surf_ladder, (ladder_left, ladder_drop-ladder_len))
-    
-    man_img = pygame.image.load("resource/man/man"+str(man_pose_num)+".png")
-        man_img = pygame.transform.scale(man_img, (MAN_WIDTH, MAN_HEIGHT))
-    display_surf.blit(wave_img, wave_pos)
-'''    
     
 def initialScore():
     score = 0
@@ -497,6 +526,14 @@ def drawScore(score):
     textRectObj = textSurfaceObj.get_rect()
     textRectObj.topleft = (0 + 10, MAIN_TOP + 10)
     display_surf.blit(textSurfaceObj, textRectObj)
+    
+def drawButtonPropmt(prompt):
+    if prompt == 1:
+        prompt_font = pygame.font.Font('freesansbold.ttf', 20)
+        textSurfaceObj = prompt_font.render("Hold space key", True, WHITE, COLOR_ROCK)
+        textRectObj = textSurfaceObj.get_rect()
+        textRectObj.bottomright = (MAN_CENTER, MAIN_BOT)
+        display_surf.blit(textSurfaceObj, textRectObj)        
 
 def drawBackgroundOver():
     display_surf.fill(COLOR_BG_OVER)
@@ -515,8 +552,8 @@ def drawScoreOver(score):
     display_surf.blit(textSurfaceObj, textRectObj)
     
 def drawPromptOver():
-    gameover_font = pygame.font.Font('freesansbold.ttf', 40)
-    textSurfaceObj = gameover_font.render("Press space key to continue!", True, WHITE, COLOR_BG_OVER)
+    prompt_font = pygame.font.Font('freesansbold.ttf', 20)
+    textSurfaceObj = prompt_font.render("Press space key to continue!", True, WHITE, COLOR_BG_OVER)
     textRectObj = textSurfaceObj.get_rect()
     textRectObj.center = (WINDOW_WIDTH//2, WINDOW_HEIGHT - 40)
     display_surf.blit(textSurfaceObj, textRectObj)
@@ -525,17 +562,17 @@ def drawBackgroundStart():
     display_surf.fill(COLOR_BG_START)
     
 def drawTitleStart():
-    gameover_font = pygame.font.Font('freesansbold.ttf', 100)
-    textSurfaceObj = gameover_font.render("L A D D E R", True, BLACK, COLOR_BG_START)
+    title_font = pygame.font.Font('freesansbold.ttf', 100)
+    textSurfaceObj = title_font.render("L A D D E R", True, BLUE, COLOR_BG_START)
     textRectObj = textSurfaceObj.get_rect()
     textRectObj.center = (WINDOW_WIDTH//2, WINDOW_HEIGHT//3)
     display_surf.blit(textSurfaceObj, textRectObj)
 
 def drawPromptStart():
-    gameover_font = pygame.font.Font('freesansbold.ttf', 40)
-    textSurfaceObj = gameover_font.render("Press space key to continue!", True, BLACK, COLOR_BG_START)
+    prompt_font = pygame.font.Font('freesansbold.ttf', 20)
+    textSurfaceObj = prompt_font.render("Press space key to continue!", True, BLACK, COLOR_BG_START)
     textRectObj = textSurfaceObj.get_rect()
-    textRectObj.center = (WINDOW_WIDTH//2, MAIN_BOT - 40)
+    textRectObj.center = (WINDOW_WIDTH//2, MAIN_BOT - RIVER_HEIGHT_OVERLAP - 40)
     display_surf.blit(textSurfaceObj, textRectObj)
     
 #====入口
