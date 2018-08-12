@@ -36,14 +36,23 @@ ROCK_SPEED = BASIC_SPEED*4
 ROCK_GAP_MIN = WINDOW_WIDTH//8
 ROCK_GAP_MAX = WINDOW_WIDTH//2
 ROCK_WIDTH_MIN = WINDOW_WIDTH//16
-ROCK_WIDTH_MAX = WINDOW_WIDTH//2
+ROCK_WIDTH_MAX = WINDOW_WIDTH//8
+#ROCK_WIDTH_MAX = WINDOW_WIDTH//2
 #人
 MAN_HEIGHT = WINDOW_HEIGHT//6
 MAN_WIDTH = MAN_HEIGHT//2
 MAN_LEFT = WINDOW_WIDTH*3//8
+MAN_CENTER = MAN_LEFT+MAN_WIDTH//2
 MAN_BOT = ROCK_TOP
 MAN_TOP = MAN_BOT-MAN_HEIGHT
 MAN_DROP_SPEED = BASIC_SPEED*5
+#梯子
+LADDER_LEN_MAX = WINDOW_WIDTH//2
+LADDER_RAISE_SPEED = BASIC_SPEED*5
+LADDER_DROP_SPEED = BASIC_SPEED*5
+LADDER_DROP_MAX = MAIN_BOT
+LADDER_ANGLE_DELTA = 10
+LADDER_ANGLE_MAX = 90
 #云
 CLOUD_HEIGHT = MAIN_TOP
 CLOUD_WIDTH = CLOUD_HEIGHT*4//3
@@ -72,6 +81,7 @@ RED         = (155,   0,   0)
 LIGHTRED    = (195,  40,  40)
 
 COLOR_BG    = WHITE
+COLOR_BG_OVER= BLACK
 COLOR_SKY   = (180, 255, 255)
 COLOR_RIVER = (200, 220, 255)
 COLOR_ROCK  = BLACK
@@ -87,22 +97,39 @@ def main():
 
     showStartScreen()
     while True:
-        runGame()
-        showGameOverScreen()
+        score = runGame()
+        showGameOverScreen(score)
         
 #====主要函数
 def showStartScreen():
     pass
 
-def showGameOverScreen():
-    pass
-
+def showGameOverScreen(score):
+    while True:
+        checkForQuit()
+        if checkForSpaceDown() == True:
+            break
+        drawBackgroundOver()    
+        drawScoreOver(score)
+        drawPromptOver()
+        pygame.display.update()
+        fps_lock.tick(FPS)
+        
 def runGame():
-    #本地变量，各种标记
+    #本地变量，各种标记，缓存
     gameOver = False
     move = True
+    move_on_ladder = False
+    raise_ladder = False
+    raise_ladder_raising = False
+    rotate_ladder = False
+    rotate_ladder_rotating = False
     drop_man = False
     drop_ladder = False
+    drop_ladder_dropping = False
+    
+    rock_current = None
+    rock_next = None
 
     #本地变量，初始化各个元素
     clouds = initialCloud()
@@ -110,19 +137,106 @@ def runGame():
     man = initialMan()
     rocks = initialRock()
     score = initialScore()
+    ladder = initialLadder()
+
+    ladder_left, ladder_drop, ladder_len, ladder_angle = ladder[0], ladder[1], ladder[2], ladder[3]
     
-    while True:
+    while gameOver == False:
         #检测退出事件
         checkForQuit()
-
+        
+        #根据各个元素最新情况，逻辑部分. 尤其是ladder相关的几个参数逻辑比较复杂，都在这里实现，便于维护
+        if move == True: #正在走动时
+            if move_on_ladder == True: 
+                print("6. Walk on ladder")
+                ladder_left -= ROCK_SPEED
+                man_pos = man[1]
+                man_x_center = man_pos[0] + MAN_WIDTH//2
+                if man_x_center >= ladder_left+ladder_len: #走出梯子了
+                    move_on_ladder = False
+                    drop_man = True #临时设为True，在下面循环中检测有没有落在石头上
+                    for i, rock in enumerate(rocks):    #从梯子上下来，马上判断是不是落在某块石头上
+                        rock_x_left, rock_width = rock[0], rock[2] #石头的左侧坐标，宽度
+                        rock_x_right = rock_x_left + rock_width
+                        if man_x_center >= rock_x_left and man_x_center < rock_x_right - ROCK_SPEED: #注意，判定的时候不能太靠近石头的右沿，要给下一次正常循环留出余量，不然可能“跳过”临界区
+                            drop_man = False
+                            break
+                    if drop_man == False:
+                        print("o. Back to normal loop")
+                        ladder_len = 0
+                        ladder_angle = 0
+                        ladder_drop = 0
+                    else:
+                        print("6.5Drop out of rock")
+                        move = False
+            else:
+                man_pos = man[1]
+                man_x_center = man_pos[0] + MAN_WIDTH//2
+                for i, rock in enumerate(rocks):
+                    rock_x_left, rock_width = rock[0], rock[2] #石头的左侧坐标，宽度
+                    rock_x_right = rock_x_left + rock_width
+                    if man_x_center < rock_x_right and man_x_center + ROCK_SPEED >= rock_x_right: #走到临界区，准备放梯子
+                        print("1. Ready to raise ladder")
+                        move = False
+                        raise_ladder = True
+                        rock_current = rock
+                        rock_next = rocks[i+1]
+                        clearKeyEvent() #把行走过程中所有按键事件清空，为接下来的放梯子做准备
+                        break
+        else:  #没有在走动，放梯子或者下坠
+            if raise_ladder == True:
+                if raise_ladder_raising == False and checkForSpaceDown() == True: 
+                    print("2. Raising ladder")
+                    raise_ladder_raising = True
+                    ladder_len += LADDER_RAISE_SPEED
+                if raise_ladder_raising == True:
+                    if checkForSpaceUp() == True or ladder_len >= LADDER_LEN_MAX:
+                        print("3. Raised ladder")
+                        raise_ladder_raising = False
+                        raise_ladder = False
+                        rotate_ladder = True
+                        rotate_ladder_rotating = True 
+                    else: #按键按下中，增长梯子长度
+                        print("2.5Raising ladder")
+                        ladder_len += LADDER_RAISE_SPEED
+            if rotate_ladder == True:
+                if rotate_ladder_rotating == True:
+                    print("4. Rotating ladder")
+                    ladder_angle += LADDER_ANGLE_DELTA
+                    if ladder_angle >= LADDER_ANGLE_MAX: 
+                        ladder_angle = LADDER_ANGLE_MAX
+                        rotate_ladder_rotating = False
+                else:
+                    print("5. Rotated ladder")
+                    rotate_ladder = False
+                    print(ladder_len)
+                    print(rock_next[0] - rock_current[0] - rock_current[2])
+                    if ladder_len < rock_next[0] - rock_current[0] - rock_current[2]: #梯子连下一块石头都不够(下一块石头左侧坐标 - 当前石头右侧坐标)
+                        drop_ladder = True
+                    else:
+                        move = True
+                        move_on_ladder = True
+                        ladder_left = rock_current[0]+rock_current[2]
+            if drop_ladder == True:
+                print("*. Drop ladder")
+                ladder_drop += LADDER_DROP_SPEED
+                if ladder_drop >= LADDER_DROP_MAX:
+                    drop_ladder = False
+                    gameOver = True
+            if drop_man == True:
+                print("7. Drop man")
+                man_pos = man[1]
+                if man_pos[1] >= MAIN_BOT:
+                    drop_man = False
+                    gameOver = True
+            pass
+            
         #更新各个元素
         clouds = updateCloud(clouds, move)
         waves = updateWave(waves, move)
         man = updateMan(man, move, drop_man)
         rocks = updateRock(rocks, move)
         score = updateScore(score, move)
-        
-        #根据各个元素最新情况，逻辑部分
         
         #绘图步骤 --------
         drawBackground()
@@ -137,14 +251,31 @@ def runGame():
 
         pygame.display.update()
         fps_lock.tick(FPS)
-
+    print("return: %d" % score)
+    return score
+        
 def checkForQuit():
-    for event in pygame.event.get():
-        if event.type == QUIT:
+    for event in pygame.event.get(QUIT):
+        terminate()
+    for event in pygame.event.get(KEYUP):
+        if event.key == K_ESCAPE:
             terminate()
-        elif event.type == KEYDOWN:
-            if event.key == K_ESCAPE:
-                terminate()
+        pygame.event.post(event) #放回所有的事件
+
+def clearKeyEvent():
+    pygame.event.get([KEYDOWN, KEYUP])
+    
+def checkForSpaceDown():
+    for event in pygame.event.get(KEYDOWN):
+        if event.key == K_SPACE:
+            return True
+    return False
+
+def checkForSpaceUp():
+    for event in pygame.event.get(KEYUP):
+        if event.key == K_SPACE:
+            return True
+    return False
 
 def terminate():
     pygame.quit()
@@ -269,7 +400,7 @@ def updateRock(rocks, move):
     if move == True:
         for rock in rocks.copy():
             rock[0] -= ROCK_SPEED
-            if rock [0] < -rock[2]: #当前的第一块移出边界，从列表中删除
+            if rock [0] < -rock[2]: #当前的第一块移出边界加上一定距离，从列表中删除（不要太早删掉，否则判定梯子长度有问题）
                 rocks.pop(0)
         rock_last = rocks[-1]
         if rock_last[0] + rock_last[2] < WINDOW_WIDTH: #当前最后一块移进边界，准备创造下一块并加入列表
@@ -290,6 +421,17 @@ def drawRock(rocks):
         rectRock = (rock[0], rock[1], rock[2], rock[3])
         pygame.draw.rect(display_surf, COLOR_ROCK, rectRock)
 
+def initialLadder():
+    ladder_left = MAN_CENTER
+    ladder_drop = ROCK_TOP
+    ladder_len = 0
+    ladder_angle = 0
+    ladder = [ladder_left, ladder_drop, ladder_len, ladder_angle]
+    return ladder
+
+def updateLadder():
+    pass
+        
 def drawLadder(drop_ladder):
     pass
 
@@ -309,8 +451,29 @@ def drawScore(score):
     textRectObj.topleft = (0 + 10, MAIN_TOP + 10)
     display_surf.blit(textSurfaceObj, textRectObj)
 
+def drawBackgroundOver():
+    display_surf.fill(COLOR_BG_OVER)
+    
+def drawScoreOver(score):
+    gameover_font = pygame.font.Font('freesansbold.ttf', 100)
+    textSurfaceObj = gameover_font.render("GAME OVER", True, LIGHTRED, COLOR_BG_OVER)
+    textRectObj = textSurfaceObj.get_rect()
+    textRectObj.center = (WINDOW_WIDTH//2, WINDOW_HEIGHT//3)
+    display_surf.blit(textSurfaceObj, textRectObj)
+    
+    score_font = pygame.font.Font('freesansbold.ttf', 80)
+    textSurfaceObj = score_font.render("SCORE: "+str(score), True, LIGHTBLUE, COLOR_BG_OVER)
+    textRectObj = textSurfaceObj.get_rect()
+    textRectObj.center = (WINDOW_WIDTH//2, WINDOW_HEIGHT*2//3)
+    display_surf.blit(textSurfaceObj, textRectObj)
+    
+def drawPromptOver():
+    gameover_font = pygame.font.Font('freesansbold.ttf', 40)
+    textSurfaceObj = gameover_font.render("Press space key to continue!", True, WHITE, COLOR_BG_OVER)
+    textRectObj = textSurfaceObj.get_rect()
+    textRectObj.center = (WINDOW_WIDTH//2, WINDOW_HEIGHT - 40)
+    display_surf.blit(textSurfaceObj, textRectObj)
 
-
-
+#====入口
 if __name__ == '__main__':
     main()
