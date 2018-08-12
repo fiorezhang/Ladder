@@ -33,11 +33,11 @@ MAIN_BOT = WINDOW_HEIGHT-WINDOW_HEIGHT//6
 ROCK_HEIGHT = WINDOW_HEIGHT//6
 ROCK_TOP = MAIN_BOT-ROCK_HEIGHT
 ROCK_SPEED = BASIC_SPEED*4
-ROCK_GAP_MIN = WINDOW_WIDTH//8
+ROCK_GAP_MIN = WINDOW_WIDTH//16
 ROCK_GAP_MAX = WINDOW_WIDTH//2
 ROCK_WIDTH_MIN = WINDOW_WIDTH//16
-ROCK_WIDTH_MAX = WINDOW_WIDTH//8
-#ROCK_WIDTH_MAX = WINDOW_WIDTH//2
+ROCK_WIDTH_MAX = WINDOW_WIDTH//2
+ROCK_GAP_WIDTH_DELTA = WINDOW_WIDTH//20 #调整的幅度
 #人
 MAN_HEIGHT = WINDOW_HEIGHT//6
 MAN_WIDTH = MAN_HEIGHT//2
@@ -48,11 +48,12 @@ MAN_TOP = MAN_BOT-MAN_HEIGHT
 MAN_DROP_SPEED = BASIC_SPEED*5
 #梯子
 LADDER_LEN_MAX = WINDOW_WIDTH//2
-LADDER_RAISE_SPEED = BASIC_SPEED*5
+LADDER_RAISE_SPEED = BASIC_SPEED*10
 LADDER_DROP_SPEED = BASIC_SPEED*5
 LADDER_DROP_MAX = MAIN_BOT
 LADDER_ANGLE_DELTA = 10
 LADDER_ANGLE_MAX = 90
+LADDER_WIDTH = 4
 #云
 CLOUD_HEIGHT = MAIN_TOP
 CLOUD_WIDTH = CLOUD_HEIGHT*4//3
@@ -80,11 +81,13 @@ LIGHTBLUE   = ( 40,  40, 195)
 RED         = (155,   0,   0)
 LIGHTRED    = (195,  40,  40)
 
-COLOR_BG    = WHITE
-COLOR_BG_OVER= BLACK
 COLOR_SKY   = (180, 255, 255)
 COLOR_RIVER = (200, 220, 255)
-COLOR_ROCK  = BLACK
+COLOR_ROCK     = BLACK
+COLOR_LADDER   = BLACK
+COLOR_BG       = WHITE
+COLOR_BG_OVER  = BLACK
+COLOR_BG_START =WHITE
 
 #====程序主体架构
 def main():
@@ -102,8 +105,24 @@ def main():
         
 #====主要函数
 def showStartScreen():
-    pass
-
+    while True:
+        checkForQuit()
+        if checkForSpaceDown() == True:
+            break
+        clouds = initialCloud()
+        waves = initialWave()
+        clouds = updateCloud(clouds, True)
+        waves = updateWave(waves, True)
+        drawBackgroundStart()    
+        drawSky()
+        drawRiver()
+        drawCloud(clouds)
+        drawWave(waves)
+        drawTitleStart()
+        drawPromptStart()
+        pygame.display.update()
+        fps_lock.tick(FPS)
+        
 def showGameOverScreen(score):
     while True:
         checkForQuit()
@@ -139,6 +158,7 @@ def runGame():
     score = initialScore()
     ladder = initialLadder()
 
+    #Ladder的处理在本地，所以参数先拆分
     ladder_left, ladder_drop, ladder_len, ladder_angle = ladder[0], ladder[1], ladder[2], ladder[3]
     
     while gameOver == False:
@@ -163,9 +183,10 @@ def runGame():
                             break
                     if drop_man == False:
                         print("o. Back to normal loop")
+                        ladder_left = MAN_CENTER
+                        ladder_drop = ROCK_TOP
                         ladder_len = 0
                         ladder_angle = 0
-                        ladder_drop = 0
                     else:
                         print("6.5Drop out of rock")
                         move = False
@@ -216,7 +237,7 @@ def runGame():
                     else:
                         move = True
                         move_on_ladder = True
-                        ladder_left = rock_current[0]+rock_current[2]
+                        ladder_left = rock_current[0]+rock_current[2]-ROCK_SPEED
             if drop_ladder == True:
                 print("*. Drop ladder")
                 ladder_drop += LADDER_DROP_SPEED
@@ -230,13 +251,17 @@ def runGame():
                     drop_man = False
                     gameOver = True
             pass
-            
+        
+        #Ladder 的处理在本地，逻辑完成后，汇总更新ladder
+        ladder = [ladder_left, ladder_drop, ladder_len, ladder_angle]
+        
         #更新各个元素
         clouds = updateCloud(clouds, move)
         waves = updateWave(waves, move)
         man = updateMan(man, move, drop_man)
         rocks = updateRock(rocks, move)
         score = updateScore(score, move)
+        ladder = updateLadder(ladder)
         
         #绘图步骤 --------
         drawBackground()
@@ -246,7 +271,7 @@ def runGame():
         drawWave(waves)
         drawMan(man)
         drawRock(rocks)
-        drawLadder(drop_ladder)
+        drawLadder(ladder)
         drawScore(score)
 
         pygame.display.update()
@@ -387,8 +412,12 @@ rock_gap_min = ROCK_GAP_MIN #随着游戏难度提升，将这四个值做调整
 rock_gap_max = ROCK_GAP_MIN + (ROCK_GAP_MAX-ROCK_GAP_MIN)//10
 rock_width_min = ROCK_WIDTH_MAX - (ROCK_WIDTH_MAX-ROCK_WIDTH_MIN)//10
 rock_width_max = ROCK_WIDTH_MAX       
-rock_delta_hard = WINDOW_WIDTH//50 #调整的幅度
 def initialRock():
+    global rock_gap_min, rock_gap_max, rock_width_min, rock_width_max, ROCK_GAP_WIDTH_DELTA
+    rock_gap_min = ROCK_GAP_MIN #随着游戏难度提升，将这四个值做调整
+    rock_gap_max = ROCK_GAP_MIN + (ROCK_GAP_MAX-ROCK_GAP_MIN)//10
+    rock_width_min = ROCK_WIDTH_MAX - (ROCK_WIDTH_MAX-ROCK_WIDTH_MIN)//10
+    rock_width_max = ROCK_WIDTH_MAX       
     rocks = []
     #rock [0:横坐标, 1:纵坐标, 2:宽度, 3:高度]
     rock = [0, ROCK_TOP, WINDOW_WIDTH, ROCK_HEIGHT] #第一块，整个长度
@@ -396,7 +425,7 @@ def initialRock():
     return rocks
 
 def updateRock(rocks, move):
-    global rock_gap_min, rock_gap_max, rock_width_min, rock_width_max, rock_delta_hard
+    global rock_gap_min, rock_gap_max, rock_width_min, rock_width_max, ROCK_GAP_WIDTH_DELTA
     if move == True:
         for rock in rocks.copy():
             rock[0] -= ROCK_SPEED
@@ -406,10 +435,10 @@ def updateRock(rocks, move):
         if rock_last[0] + rock_last[2] < WINDOW_WIDTH: #当前最后一块移进边界，准备创造下一块并加入列表
             if True:
                 if rock_gap_max < ROCK_GAP_MAX:
-                    rock_gap_max += rock_delta_hard
+                    rock_gap_max += ROCK_GAP_WIDTH_DELTA
                 if rock_width_min > ROCK_WIDTH_MIN:
-                    rock_width_min -= rock_delta_hard
-                    rock_width_max -= rock_delta_hard
+                    rock_width_min -= ROCK_GAP_WIDTH_DELTA
+                    rock_width_max -= ROCK_GAP_WIDTH_DELTA
             rock_gap = np.random.randint(rock_gap_min, high=rock_gap_max)
             rock_width = np.random.randint(rock_width_min, high=rock_width_max)
             rock_next = [WINDOW_WIDTH+rock_gap, ROCK_TOP, rock_width, ROCK_HEIGHT]
@@ -418,8 +447,8 @@ def updateRock(rocks, move):
         
 def drawRock(rocks):
     for rock in rocks:
-        rectRock = (rock[0], rock[1], rock[2], rock[3])
-        pygame.draw.rect(display_surf, COLOR_ROCK, rectRock)
+        rect_rock = (rock[0], rock[1], rock[2], rock[3])
+        pygame.draw.rect(display_surf, COLOR_ROCK, rect_rock)
 
 def initialLadder():
     ladder_left = MAN_CENTER
@@ -429,12 +458,29 @@ def initialLadder():
     ladder = [ladder_left, ladder_drop, ladder_len, ladder_angle]
     return ladder
 
-def updateLadder():
-    pass
+def updateLadder(ladder):
+    print(ladder)
+    return ladder
         
-def drawLadder(drop_ladder):
-    pass
-
+def drawLadder(ladder):
+    ladder_left, ladder_drop, ladder_len, ladder_angle = ladder[0], ladder[1], ladder[2], ladder[3]
+    
+    ladder_img = pygame.image.load("resource/ladder/ladder.png")
+    ladder_img = pygame.transform.scale(ladder_img, (LADDER_WIDTH, ladder_len))
+    ladder_img = pygame.transform.rotate(ladder_img, -ladder_angle)
+    img_hight = pygame.Surface.get_height(ladder_img)
+    display_surf.blit(ladder_img, (ladder_left, ladder_drop-img_hight))
+'''    
+    surf_ladder = pygame.Surface([LADDER_WIDTH, ladder_len])
+    surf_ladder.fill(COLOR_LADDER)
+    surf_ladder = pygame.transform.rotate(surf_ladder, ladder_angle)
+    display_surf.blit(surf_ladder, (ladder_left, ladder_drop-ladder_len))
+    
+    man_img = pygame.image.load("resource/man/man"+str(man_pose_num)+".png")
+        man_img = pygame.transform.scale(man_img, (MAN_WIDTH, MAN_HEIGHT))
+    display_surf.blit(wave_img, wave_pos)
+'''    
+    
 def initialScore():
     score = 0
     return score
@@ -474,6 +520,23 @@ def drawPromptOver():
     textRectObj.center = (WINDOW_WIDTH//2, WINDOW_HEIGHT - 40)
     display_surf.blit(textSurfaceObj, textRectObj)
 
+def drawBackgroundStart():
+    display_surf.fill(COLOR_BG_START)
+    
+def drawTitleStart():
+    gameover_font = pygame.font.Font('freesansbold.ttf', 100)
+    textSurfaceObj = gameover_font.render("L A D D E R", True, BLACK, COLOR_BG_START)
+    textRectObj = textSurfaceObj.get_rect()
+    textRectObj.center = (WINDOW_WIDTH//2, WINDOW_HEIGHT//3)
+    display_surf.blit(textSurfaceObj, textRectObj)
+
+def drawPromptStart():
+    gameover_font = pygame.font.Font('freesansbold.ttf', 40)
+    textSurfaceObj = gameover_font.render("Press space key to continue!", True, BLACK, COLOR_BG_START)
+    textRectObj = textSurfaceObj.get_rect()
+    textRectObj.center = (WINDOW_WIDTH//2, MAIN_BOT - 40)
+    display_surf.blit(textSurfaceObj, textRectObj)
+    
 #====入口
 if __name__ == '__main__':
     main()
