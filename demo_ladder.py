@@ -7,8 +7,9 @@ from pygame.locals import *
 
 #====全局变量
 FPS = 15
-WINDOW_WIDTH = 640
-WINDOW_HEIGHT = 480
+MUSIC = True
+WINDOW_WIDTH = 800
+WINDOW_HEIGHT = 600
 
 #====构图
 '''
@@ -34,10 +35,10 @@ ROCK_HEIGHT = WINDOW_HEIGHT//6
 ROCK_TOP = MAIN_BOT-ROCK_HEIGHT
 ROCK_SPEED = BASIC_SPEED*4
 ROCK_GAP_MIN = WINDOW_WIDTH//16
-ROCK_GAP_MAX = WINDOW_WIDTH//2
+ROCK_GAP_MAX = WINDOW_WIDTH*7//16
 ROCK_WIDTH_MIN = WINDOW_WIDTH//16
 ROCK_WIDTH_MAX = WINDOW_WIDTH//2
-ROCK_GAP_WIDTH_DELTA = WINDOW_WIDTH//10 #调整的幅度
+ROCK_GAP_WIDTH_DELTA = WINDOW_WIDTH//40 #调整的幅度
 #人
 MAN_HEIGHT = WINDOW_HEIGHT//6
 MAN_WIDTH = MAN_HEIGHT//2
@@ -106,9 +107,10 @@ def main():
         
 #====主要函数
 def showStartScreen():
-    pygame.mixer.music.load("resource/sound/start.mp3")
-    pygame.mixer.music.set_volume(0.5)
-    pygame.mixer.music.play(-1, 0.0)
+    if MUSIC == True:
+        pygame.mixer.music.load("resource/sound/start.mp3")
+        pygame.mixer.music.set_volume(0.5)
+        pygame.mixer.music.play(-1, 0.0)
     clouds = initialCloud()
     waves = initialWave()    
     while True:
@@ -129,9 +131,10 @@ def showStartScreen():
             break
         
 def showGameOverScreen(score):
-    pygame.mixer.music.load("resource/sound/end.mp3")
-    pygame.mixer.music.set_volume(0.5)
-    pygame.mixer.music.play(-1, 0.0)    
+    if MUSIC == True:
+        pygame.mixer.music.load("resource/sound/end.mp3")
+        pygame.mixer.music.set_volume(0.5)
+        pygame.mixer.music.play(-1, 0.0)    
     if np.random.randint(2) == 0:
         sound_end_joke = pygame.mixer.Sound("resource/sound/end_joke_1.wav")
     else:
@@ -144,9 +147,10 @@ def showGameOverScreen(score):
         drawPromptOver()
         pygame.display.update()
         fps_lock.tick(FPS)
-        time.sleep(2)
+        time.sleep(1)
         if checkForSpaceDown() == True:
-            pygame.mixer.music.stop()
+            if MUSIC == True:
+                pygame.mixer.music.stop()
             break
 
         
@@ -179,9 +183,10 @@ def runGame():
     ladder_left, ladder_drop, ladder_len, ladder_angle = ladder[0], ladder[1], ladder[2], ladder[3]
 
     #MUSIC
-    pygame.mixer.music.load("resource/sound/main.mp3")
-    pygame.mixer.music.set_volume(0.3)
-    pygame.mixer.music.play(-1, 0.0)
+    if MUSIC == True:
+        pygame.mixer.music.load("resource/sound/main.mp3")
+        pygame.mixer.music.set_volume(0.3)
+        pygame.mixer.music.play(-1, 0.0)
     sound_main_raise = pygame.mixer.Sound("resource/sound/main_raise.wav")
     sound_main_success = pygame.mixer.Sound("resource/sound/main_success.wav")
     sound_main_failure_1 = pygame.mixer.Sound("resource/sound/main_failure_1.wav")
@@ -316,7 +321,8 @@ def runGame():
         pygame.display.update()
         fps_lock.tick(FPS)
     print("return: %d" % score)
-    pygame.mixer.music.stop()
+    if MUSIC == True:
+        pygame.mixer.music.stop()
     return score
         
 def checkForQuit():
@@ -476,9 +482,15 @@ def updateRock(rocks, move):
             if True:
                 if rock_gap_max < ROCK_GAP_MAX:
                     rock_gap_max += ROCK_GAP_WIDTH_DELTA
+                else:
+                    rock_gap_max = ROCK_GAP_MAX
                 if rock_width_min > ROCK_WIDTH_MIN:
                     rock_width_min -= ROCK_GAP_WIDTH_DELTA
                     rock_width_max -= ROCK_GAP_WIDTH_DELTA
+                else:
+                    rock_width_min = ROCK_WIDTH_MIN
+                    if rock_width_max < rock_width_min:
+                        rock_width_max = rock_width_min
             rock_gap = np.random.randint(rock_gap_min, high=rock_gap_max)
             rock_width = np.random.randint(rock_width_min, high=rock_width_max)
             rock_next = [WINDOW_WIDTH+rock_gap, ROCK_TOP, rock_width, ROCK_HEIGHT]
@@ -529,10 +541,10 @@ def drawScore(score):
     
 def drawButtonPropmt(prompt):
     if prompt == 1:
-        prompt_font = pygame.font.Font('freesansbold.ttf', 20)
+        prompt_font = pygame.font.Font('freesansbold.ttf', 30)
         textSurfaceObj = prompt_font.render("Hold space key", True, WHITE, COLOR_ROCK)
         textRectObj = textSurfaceObj.get_rect()
-        textRectObj.bottomright = (MAN_CENTER, MAIN_BOT)
+        textRectObj.bottomright = (MAN_CENTER-20, MAIN_BOT-20)
         display_surf.blit(textSurfaceObj, textRectObj)        
 
 def drawBackgroundOver():
