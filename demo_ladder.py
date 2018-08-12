@@ -37,7 +37,7 @@ ROCK_GAP_MIN = WINDOW_WIDTH//16
 ROCK_GAP_MAX = WINDOW_WIDTH//2
 ROCK_WIDTH_MIN = WINDOW_WIDTH//16
 ROCK_WIDTH_MAX = WINDOW_WIDTH//2
-ROCK_GAP_WIDTH_DELTA = WINDOW_WIDTH//20 #调整的幅度
+ROCK_GAP_WIDTH_DELTA = WINDOW_WIDTH//10 #调整的幅度
 #人
 MAN_HEIGHT = WINDOW_HEIGHT//6
 MAN_WIDTH = MAN_HEIGHT//2
@@ -210,6 +210,7 @@ def runGame():
                     print("2. Raising ladder")
                     raise_ladder_raising = True
                     ladder_len += LADDER_RAISE_SPEED
+                    clearKeyEvent() #把行走过程中所有按键事件清空，为接下来的放梯子做准备
                 if raise_ladder_raising == True:
                     if checkForSpaceUp() == True or ladder_len >= LADDER_LEN_MAX:
                         print("3. Raised ladder")
