@@ -1,4 +1,5 @@
 #coding:utf-8
+#copyright: fiorezhang@sina.com
 
 import random, time, pygame, sys
 import numpy as np
@@ -7,7 +8,7 @@ from pygame.locals import *
 
 #====全局变量
 FPS = 15
-MUSIC = True
+MUSIC = True 
 WINDOW_WIDTH = 800
 WINDOW_HEIGHT = 600
 
@@ -38,7 +39,7 @@ ROCK_GAP_MIN = WINDOW_WIDTH//16
 ROCK_GAP_MAX = WINDOW_WIDTH*7//16
 ROCK_WIDTH_MIN = WINDOW_WIDTH//16
 ROCK_WIDTH_MAX = WINDOW_WIDTH//2
-ROCK_GAP_WIDTH_DELTA = WINDOW_WIDTH//40 #调整的幅度
+ROCK_GAP_WIDTH_DELTA = WINDOW_WIDTH//40 #调整的幅度, 可以调整难度，越大游戏难度增长越快
 #人
 MAN_HEIGHT = WINDOW_HEIGHT//6
 MAN_WIDTH = MAN_HEIGHT//2
@@ -49,7 +50,7 @@ MAN_TOP = MAN_BOT-MAN_HEIGHT
 MAN_DROP_SPEED = BASIC_SPEED*5
 #梯子
 LADDER_LEN_MAX = WINDOW_WIDTH//2
-LADDER_RAISE_SPEED = BASIC_SPEED*10
+LADDER_RAISE_SPEED = BASIC_SPEED*10 #梯子上升速度，原则上越大游戏越难
 LADDER_DROP_SPEED = BASIC_SPEED*5
 LADDER_DROP_MAX = MAIN_BOT
 LADDER_ANGLE_DELTA = 10
@@ -88,10 +89,14 @@ COLOR_ROCK     = BLACK
 COLOR_LADDER   = BLACK
 COLOR_BG       = WHITE
 COLOR_BG_OVER  = BLACK
-COLOR_BG_START =WHITE
+COLOR_BG_START = WHITE
 
 #====程序主体架构
 def main():
+    ''' Initialization. 
+    Fps and main surface is globalized, for all scenes. 
+    Game start with a start screen, then loop in main routine and end screen(show a score)
+    '''
     global fps_lock, display_surf
 
     pygame.init()
@@ -107,6 +112,9 @@ def main():
         
 #====主要函数
 def showStartScreen():
+    ''' Start screen. 
+    Play start music. Show title and button prompt. Show more items for good look. 
+    '''
     if MUSIC == True:
         pygame.mixer.music.load("resource/sound/start.mp3")
         pygame.mixer.music.set_volume(0.5)
@@ -131,6 +139,9 @@ def showStartScreen():
             break
         
 def showGameOverScreen(score):
+    ''' Game over screen. 
+    Play music and taunt. Show score and button prompt. 
+    '''
     if MUSIC == True:
         pygame.mixer.music.load("resource/sound/end.mp3")
         pygame.mixer.music.set_volume(0.5)
@@ -147,7 +158,7 @@ def showGameOverScreen(score):
         drawPromptOver()
         pygame.display.update()
         fps_lock.tick(FPS)
-        time.sleep(1)
+        time.sleep(1) #避免过快跳过游戏结束界面开始下一局
         if checkForSpaceDown() == True:
             if MUSIC == True:
                 pygame.mixer.music.stop()
@@ -155,6 +166,11 @@ def showGameOverScreen(score):
 
         
 def runGame():
+    ''' Main routine. 
+    Play main music, sound effects. Initialize elements and flags. In main loop, update elements in state machine, then draw. 
+    Major elements include: man, rocks, ladder, and other landscape blobs. 
+    Man keep walk on rocks and stop automatically at edge, raise the ladder to cross the gap. Ladder too short or too long will lead to a failure. 
+    '''
     #本地变量，各种标记，缓存
     gameOver = False
     move = True
@@ -207,6 +223,30 @@ def runGame():
         ladder = updateLadder(ladder)
                 
         #根据各个元素最新情况，逻辑部分. 尤其是ladder相关的几个参数逻辑比较复杂，都在这里实现，便于维护
+        '''
+        if move is True:
+            # Everything updated just now - clouds, waves, man, most importantly rocks
+            # Either man normally walk on a rock, or man walk on the ladder
+            if move_on_ladder is True:
+                # Update ladder position, speed MUST as well as rock
+                # Judge if still on ladder, if no if right on any rock, if still no then mark drop_man
+                # Specially, if end of ladder is close to end of rock, directly judge whether next ladder here, to avoid 'critical section' miss in normal walk routine
+            if move_on_ladder is False:
+                # Judge whether close to end of rock, if yes then mark raise_ladder
+        if move is False:
+            # Below situations when not move: raise ladder, rotate ladder, drop ladder, drop man
+                if raise_ladder is True:
+                    # Add ladder lenth until the MAX value
+                    # Important: Cleared key press before enter here
+                    # Catch button down for starting raising
+                    # Catch button up for end, trigger rotate_ladder
+                if rotate_ladder is True:
+                    # Increase the digree, judge whether hit next rock when flat, if so set move_on_ladder, or set drop_ladder
+                if drop_ladder is True:
+                    # Drop until the bottom, game over
+                if drop_man is True:
+                    # Drop until the bottom, game over
+        '''
         if move == True: #正在走动时
             if move_on_ladder == True: 
                 #print("6. Walk on ladder")
@@ -333,6 +373,9 @@ def runGame():
     return score
         
 def checkForQuit():
+    ''' Check for quit by system or esc button
+    Throw back all button event to avoid missing in following routine
+    '''
     for event in pygame.event.get(QUIT):
         terminate()
     for event in pygame.event.get(KEYUP):
@@ -341,36 +384,53 @@ def checkForQuit():
         pygame.event.post(event) #放回所有的事件
 
 def clearKeyEvent():
+    ''' Clear existing button event
+    Used like before ladder raise. Ensure no residual button state interference the logics. 
+    '''
     pygame.event.get([KEYDOWN, KEYUP])
     
 def checkForSpaceDown():
+    ''' Check for space button down, ignore and clear other button event
+    '''
     for event in pygame.event.get(KEYDOWN):
         if event.key == K_SPACE:
             return True
     return False
 
 def checkForSpaceUp():
+    ''' Check for space button up, ignore and clear other button event
+    '''
     for event in pygame.event.get(KEYUP):
         if event.key == K_SPACE:
             return True
     return False
 
 def terminate():
+    ''' Quit game
+    '''
     pygame.quit()
     sys.exit()
 
 def drawBackground():
+    ''' Draw background for main routine
+    '''
     display_surf.fill(COLOR_BG)
 
 def drawSky():
+    ''' Draw sky, simply a colorful rectangle
+    '''
     sky = pygame.Rect(0, 0, WINDOW_WIDTH, CLOUD_HEIGHT)
     pygame.draw.rect(display_surf, COLOR_SKY, sky)
 
 def drawRiver():
+    ''' Draw river, simply a colorful rectangle
+    '''
     river = pygame.Rect(0, MAIN_BOT - RIVER_HEIGHT_OVERLAP, WINDOW_WIDTH, WAVE_HEIGHT+RIVER_HEIGHT_OVERLAP)
     pygame.draw.rect(display_surf, COLOR_RIVER, river)
     
 def initialCloud():
+    ''' Initialize clouds, get random clouds texture
+    '''
     clouds = []
     pos = np.random.randint(0, high=WINDOW_WIDTH-CLOUD_WIDTH*(CLOUD_CNT-1), size=(CLOUD_CNT))
     pos = np.sort(pos)
@@ -384,6 +444,9 @@ def initialCloud():
     return clouds
 
 def updateCloud(clouds, move):
+    ''' Update clouds, slow speed. To simple the logics, every cloud redraw at right after remove from left of screen, just randomly change a texture
+    When move, change position
+    '''
     if move == True:
         for i, cloud in enumerate(clouds):
             cloud_img, cloud_pos = cloud[0], cloud[1]
@@ -397,11 +460,15 @@ def updateCloud(clouds, move):
     return clouds
 
 def drawCloud(clouds):
+    ''' Draw clouds
+    '''
     for cloud in clouds:
         cloud_img, cloud_pos = cloud[0], cloud[1]
         display_surf.blit(cloud_img, cloud_pos)
 
 def initialWave():
+    ''' Initialize waves, get texture
+    '''
     waves = []
     pos = np.random.randint(0, high=WINDOW_WIDTH-WAVE_WIDTH*(WAVE_CNT-1), size=(WAVE_CNT))
     pos = np.sort(pos)
@@ -415,6 +482,8 @@ def initialWave():
     return waves
     
 def updateWave(waves, move):
+    ''' Update waves, slightly faster speed than rocks. When move, change position
+    '''
     if move == True:
         for i, wave in enumerate(waves):
             wave_img, wave_pos = wave[0], wave[1]
@@ -426,6 +495,8 @@ def updateWave(waves, move):
     return waves
         
 def drawWave(waves):
+    ''' Draw waves
+    '''
     for wave in waves:
         wave_img, wave_pos = wave[0], wave[1]
         display_surf.blit(wave_img, wave_pos)
@@ -433,6 +504,8 @@ def drawWave(waves):
 man_pose_num = 0 #全局变量
 MAN_POSE_CNT = 6
 def initialMan():
+    ''' Initialize man. Get consequent pose from textures. 
+    '''
     global man_pose_num
     man_img = pygame.image.load("resource/man/man"+str(man_pose_num)+".png")
     man_img = pygame.transform.scale(man_img, (MAN_WIDTH, MAN_HEIGHT))
@@ -441,6 +514,8 @@ def initialMan():
     return man
     
 def updateMan(man, move, drop_man):
+    ''' Update man. When move, choose next pose texture. When drop, change position. 
+    '''
     global man_pose_num
     man_img, man_pos = man[0], man[1]
     if move == True:
@@ -458,6 +533,8 @@ def updateMan(man, move, drop_man):
     return man
         
 def drawMan(man):
+    ''' Draw man
+    '''
     man_img, man_pos = man[0], man[1]
     display_surf.blit(man_img, man_pos)
 
@@ -466,7 +543,13 @@ rock_gap_max = ROCK_GAP_MIN + (ROCK_GAP_MAX-ROCK_GAP_MIN)//10
 rock_width_min = ROCK_WIDTH_MAX - (ROCK_WIDTH_MAX-ROCK_WIDTH_MIN)//10
 rock_width_max = ROCK_WIDTH_MAX       
 def initialRock():
+    ''' Initialize rocks. 
+    Import global values to adjust rock width and gap range. That impact the difficulty. 
+    At the beginning, the rocks are wide, and gaps are close. 
+    Then along the game, reduce the width MIN and MAX, increase the gap MAX. 
+    '''
     global rock_gap_min, rock_gap_max, rock_width_min, rock_width_max, ROCK_GAP_WIDTH_DELTA
+    #每次初始化都要重设，否则下一局游戏难度不会还原
     rock_gap_min = ROCK_GAP_MIN #随着游戏难度提升，将这四个值做调整
     rock_gap_max = ROCK_GAP_MIN + (ROCK_GAP_MAX-ROCK_GAP_MIN)//10
     rock_width_min = ROCK_WIDTH_MAX - (ROCK_WIDTH_MAX-ROCK_WIDTH_MIN)//10
@@ -478,11 +561,15 @@ def initialRock():
     return rocks
 
 def updateRock(rocks, move):
+    ''' Update rocks. 
+    Remove rocks which out of screen. 
+    When last rock in list fully in screen, prepare a new rock, gap and width randomlly in defined range. 
+    '''
     global rock_gap_min, rock_gap_max, rock_width_min, rock_width_max, ROCK_GAP_WIDTH_DELTA
     if move == True:
-        for rock in rocks.copy():
+        for rock in rocks.copy(): # 做copy，因为要删除元素，否则遍历可能出错
             rock[0] -= ROCK_SPEED
-            if rock [0] < -rock[2]: #当前的第一块移出边界加上一定距离，从列表中删除（不要太早删掉，否则判定梯子长度有问题）
+            if rock [0] < -rock[2]: #当前的第一块移出边界#加上一定距离，从列表中删除（不要太早删掉，否则判定梯子长度有问题）(通过记录梯子位置，又避免了这个问题)
                 rocks.pop(0)
         rock_last = rocks[-1]
         if rock_last[0] + rock_last[2] < WINDOW_WIDTH: #当前最后一块移进边界，准备创造下一块并加入列表
@@ -505,11 +592,17 @@ def updateRock(rocks, move):
     return rocks
         
 def drawRock(rocks):
+    ''' Draw rocks. 
+    '''
     for rock in rocks:
         rect_rock = (rock[0], rock[1], rock[2], rock[3])
         pygame.draw.rect(display_surf, COLOR_ROCK, rect_rock)
 
 def initialLadder():
+    ''' Initialize ladder. 
+    Ladder is the most complex item in the game. The changable facts include: length, position, angle
+    So use four values to record the status, the left coord, bottom coord, length, and rotate angle(clock)
+    '''
     ladder_left = MAN_CENTER
     ladder_drop = ROCK_TOP
     ladder_len = 0
@@ -518,10 +611,17 @@ def initialLadder():
     return ladder
 
 def updateLadder(ladder):
+    ''' Update ladder
+    Do NOTHING. All update implemented in main loop for easy comprehension and maintain
+    '''
     #print(ladder)
     return ladder
         
 def drawLadder(ladder):
+    ''' Draw ladder. 
+    Load texture, scale to size(length changed), rotate to right angle. 
+    Because the blit function choose topleft as hook point, need to get the surface height then calculate the topleft coordinate
+    '''
     ladder_left, ladder_drop, ladder_len, ladder_angle = ladder[0], ladder[1], ladder[2], ladder[3]
     
     ladder_img = pygame.image.load("resource/ladder/ladder.png")
@@ -531,15 +631,22 @@ def drawLadder(ladder):
     display_surf.blit(ladder_img, (ladder_left, ladder_drop-img_hight))
     
 def initialScore():
+    ''' Initialize score. 
+    '''
     score = 0
     return score
     
 def updateScore(score, move):
+    ''' Update score. 
+    Each move step earn a point
+    '''
     if move == True:
         score += 1
     return score
     
 def drawScore(score):
+    ''' Draw score. 
+    '''
     score_font = pygame.font.Font('freesansbold.ttf', 20)
     textSurfaceObj = score_font.render("SCORE: "+str(score), True, LIGHTBLUE, COLOR_BG)
     textRectObj = textSurfaceObj.get_rect()
@@ -547,6 +654,9 @@ def drawScore(score):
     display_surf.blit(textSurfaceObj, textRectObj)
     
 def drawButtonPropmt(prompt):
+    ''' Draw 'hold space key' prompt for new player. 
+    Only draw when stop at the edge of the first rock, to help people know what to do
+    '''
     if prompt == 1:
         prompt_font = pygame.font.Font('freesansbold.ttf', 30)
         textSurfaceObj = prompt_font.render("Hold space key", True, WHITE, COLOR_ROCK)
@@ -555,9 +665,13 @@ def drawButtonPropmt(prompt):
         display_surf.blit(textSurfaceObj, textRectObj)        
 
 def drawBackgroundOver():
+    ''' Draw background for game over screen. 
+    '''
     display_surf.fill(COLOR_BG_OVER)
     
 def drawScoreOver(score):
+    ''' Draw 'GAME OVER' and score for game over screen. 
+    '''
     gameover_font = pygame.font.Font('freesansbold.ttf', 100)
     textSurfaceObj = gameover_font.render("GAME OVER", True, LIGHTRED, COLOR_BG_OVER)
     textRectObj = textSurfaceObj.get_rect()
@@ -571,6 +685,8 @@ def drawScoreOver(score):
     display_surf.blit(textSurfaceObj, textRectObj)
     
 def drawPromptOver():
+    ''' Draw button prompt to back to main routine for game over screen. 
+    '''
     prompt_font = pygame.font.Font('freesansbold.ttf', 20)
     textSurfaceObj = prompt_font.render("Press space key to continue!", True, WHITE, COLOR_BG_OVER)
     textRectObj = textSurfaceObj.get_rect()
@@ -578,9 +694,13 @@ def drawPromptOver():
     display_surf.blit(textSurfaceObj, textRectObj)
 
 def drawBackgroundStart():
+    ''' Draw background for start screen. 
+    '''
     display_surf.fill(COLOR_BG_START)
     
 def drawTitleStart():
+    ''' Draw title for start screen. 
+    '''
     title_font = pygame.font.Font('freesansbold.ttf', 100)
     textSurfaceObj = title_font.render("L A D D E R", True, BLUE, COLOR_BG_START)
     textRectObj = textSurfaceObj.get_rect()
@@ -588,6 +708,8 @@ def drawTitleStart():
     display_surf.blit(textSurfaceObj, textRectObj)
 
 def drawPromptStart():
+    ''' Draw button prompt to start main routine for start screen. 
+    '''
     prompt_font = pygame.font.Font('freesansbold.ttf', 20)
     textSurfaceObj = prompt_font.render("Press space key to continue!", True, BLACK, COLOR_BG_START)
     textRectObj = textSurfaceObj.get_rect()
