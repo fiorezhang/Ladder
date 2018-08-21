@@ -103,7 +103,7 @@ def main():
     pygame.mixer.init()
     fps_lock = pygame.time.Clock()
     display_surf = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-    pygame.display.set_caption('Ladder')
+    pygame.display.set_caption('Ladder for Leah')
 
     showStartScreen()
     while True:
@@ -627,8 +627,8 @@ def drawLadder(ladder):
     ladder_img = pygame.image.load("resource/ladder/ladder.png")
     ladder_img = pygame.transform.scale(ladder_img, (LADDER_WIDTH, ladder_len))
     ladder_img = pygame.transform.rotate(ladder_img, -ladder_angle)
-    img_hight = pygame.Surface.get_height(ladder_img)
-    display_surf.blit(ladder_img, (ladder_left, ladder_drop-img_hight))
+    img_height = pygame.Surface.get_height(ladder_img)
+    display_surf.blit(ladder_img, (ladder_left, ladder_drop-img_height))
     
 def initialScore():
     ''' Initialize score. 
